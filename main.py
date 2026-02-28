@@ -84,7 +84,7 @@ def summarize_commits_with_llm(commit_messages):
     }
     # Corrected data structure based on the new example
     data = {
-        "model": "doubao-pro-32k",
+        "model": "doubao-seed-1-8-251228",
         "input": [
             {
                 "role": "user",
