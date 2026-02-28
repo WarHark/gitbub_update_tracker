@@ -83,7 +83,7 @@ def summarize_commits_with_llm(commit_messages):
         'Authorization': f'Bearer {ARK_API_KEY}'
     }
     data = {
-        "model": "doubao-seed-1-8-251228",
+        "model": "doubao-pro-32k",
         "input": [
             {
                 "role": "user",
@@ -102,19 +102,23 @@ def summarize_commits_with_llm(commit_messages):
         response.raise_for_status()
         response_data = response.json()
 
-        # Safely extract the text from the new response structure
-        choices = response_data.get('choices', [])
-        if not choices or 'message' not in choices[0] or 'content' not in choices[0]['message']:
-            # --- Start of new debug logic ---
-            print("--- Unexpected API Response ---")
-            print(json.dumps(response_data, indent=2, ensure_ascii=False))
-            print("-----------------------------")
-            # --- End of new debug logic ---
-            error_info = response_data.get('error', {'message': 'Unknown error'})
-            return f"Could not extract summary from Ark API response: {error_info.get('message')}"
+        # --- Final fix for response parsing ---
+        output_list = response_data.get('output', [])
+        for item in output_list:
+            if item.get('type') == 'message' and item.get('role') == 'assistant':
+                content_list = item.get('content', [])
+                for content_item in content_list:
+                    if content_item.get('type') == 'output_text':
+                        summary = content_item.get('text', '')
+                        return summary.strip()
 
-        summary = choices[0]['message']['content']
-        return summary.strip()
+        # If summary is not found, print debug info and return an error
+        print("--- Unexpected API Response: Could not find summary text ---")
+        print(json.dumps(response_data, indent=2, ensure_ascii=False))
+        print("----------------------------------------------------------")
+        error_info = response_data.get('error', {'message': 'Summary not found in response structure'})
+        return f"Could not extract summary from Ark API response: {error_info.get('message')}"
+
     except requests.exceptions.RequestException as e:
         print(f"Error calling VolcEngine Ark API: {e}")
         if e.response is not None:
@@ -170,6 +174,7 @@ def main():
                 f.write('changes_made=true\n')
 
     print("\nUpdate check finished.")
+
 
 if __name__ == "__main__":
     main()
