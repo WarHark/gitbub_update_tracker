@@ -1,7 +1,6 @@
 {
   "repositories": [
-    "owner1/repo1",
-    "owner2/repo2"
+    "Fission-AI/OpenSpec"
   ],
   "recipients": [
     "your-email@example.com"
