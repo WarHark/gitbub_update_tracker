@@ -1,6 +1,7 @@
 {
   "repositories": [
-    "Fission-AI/OpenSpec"
+    "Fission-AI/OpenSpec",
+    "tyrchen/claude-skills"
   ],
   "recipients": [
     "your-email@example.com"
