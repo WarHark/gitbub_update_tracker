@@ -26,6 +26,14 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
+      - name: Download last commits data
+        uses: actions/download-artifact@v4
+        with:
+          name: last-commits
+          path: .
+        continue-on-error: true
+
+
    # --- ↓↓↓ 在这里添加新的诊断步骤 ↓↓↓ ---
       - name: DEBUG - Test Network Connectivity
         run: curl -v https://ark.cn-beijing.volces.com/api/v3/responses
@@ -37,4 +45,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           ARK_API_KEY: ${{ secrets.ARK_API_KEY }}
         run: python main.py
+
+      - name: Upload last commits data
+        uses: actions/upload-artifact@v4
+        with:
+          name: last-commits
+          path: last_commits.json
+          retention-days: 90
+
 
