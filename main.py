@@ -82,9 +82,8 @@ def summarize_commits_with_llm(commit_messages):
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {ARK_API_KEY}'
     }
-    # Corrected data structure based on the new example
     data = {
-        "model": "doubao-seed-1-8-251228",
+        "model": "doubao-pro-32k",
         "input": [
             {
                 "role": "user",
@@ -106,6 +105,11 @@ def summarize_commits_with_llm(commit_messages):
         # Safely extract the text from the new response structure
         choices = response_data.get('choices', [])
         if not choices or 'message' not in choices[0] or 'content' not in choices[0]['message']:
+            # --- Start of new debug logic ---
+            print("--- Unexpected API Response ---")
+            print(json.dumps(response_data, indent=2, ensure_ascii=False))
+            print("-----------------------------")
+            # --- End of new debug logic ---
             error_info = response_data.get('error', {'message': 'Unknown error'})
             return f"Could not extract summary from Ark API response: {error_info.get('message')}"
 
@@ -113,7 +117,6 @@ def summarize_commits_with_llm(commit_messages):
         return summary.strip()
     except requests.exceptions.RequestException as e:
         print(f"Error calling VolcEngine Ark API: {e}")
-        # Try to get more details from the response body if available
         if e.response is not None:
             print(f"Response body: {e.response.text}")
         return f"Error during summarization: {e}"
