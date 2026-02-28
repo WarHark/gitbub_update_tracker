@@ -10,7 +10,8 @@ LAST_COMMITS_FILE = 'last_commits.json'
 SUMMARY_FILE = 'summaries.md'
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 ARK_API_KEY = os.environ.get('ARK_API_KEY')
-ARK_API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
+# Corrected API URL based on the new example
+ARK_API_URL = "https://ark.cn-beijing.volces.com/api/v3/responses"
 
 # --- Helper Functions ---
 
@@ -61,7 +62,7 @@ def get_new_commits(repo, last_commit_sha):
         return response.json()
 
 def summarize_commits_with_llm(commit_messages):
-    """Summarizes commit messages using VolcEngine Ark (doubao) API."""
+    """Summarizes commit messages using the corrected VolcEngine Ark API."""
     if not ARK_API_KEY:
         print("Error: ARK_API_KEY not set. Check your repository's secrets.")
         return "Could not summarize commits: API key is missing."
@@ -81,11 +82,19 @@ def summarize_commits_with_llm(commit_messages):
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {ARK_API_KEY}'
     }
+    # Corrected data structure based on the new example
     data = {
-        "model": "doubao-pro-32k", # Using a common doubao pro model
-        "messages": [
-            {"role": "system", "content": "你是一个专业的软件开发助手，擅长从 Git commit 信息中提炼和总结关键变更。"},
-            {"role": "user", "content": user_prompt}
+        "model": "doubao-pro-32k",
+        "input": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": user_prompt
+                    }
+                ]
+            }
         ]
     }
 
@@ -94,7 +103,7 @@ def summarize_commits_with_llm(commit_messages):
         response.raise_for_status()
         response_data = response.json()
 
-        # Safely extract the text from the response
+        # Safely extract the text from the new response structure
         choices = response_data.get('choices', [])
         if not choices or 'message' not in choices[0] or 'content' not in choices[0]['message']:
             error_info = response_data.get('error', {'message': 'Unknown error'})
@@ -104,6 +113,9 @@ def summarize_commits_with_llm(commit_messages):
         return summary.strip()
     except requests.exceptions.RequestException as e:
         print(f"Error calling VolcEngine Ark API: {e}")
+        # Try to get more details from the response body if available
+        if e.response is not None:
+            print(f"Response body: {e.response.text}")
         return f"Error during summarization: {e}"
 
 # --- Main Logic ---
