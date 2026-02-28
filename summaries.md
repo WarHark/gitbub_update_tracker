@@ -23,3 +23,15 @@ Error during summarization: 404 Client Error: Not Found for url: https://ark.cn-
 
 ---
 
+## Fission-AI/OpenSpec - 2026-02-28 08:11:09 UTC
+
+Error during summarization: 404 Client Error: Not Found for url: https://ark.cn-beijing.volces.com/api/v3/responses
+
+---
+
+## tyrchen/claude-skills - 2026-02-28 08:11:11 UTC
+
+Error during summarization: 404 Client Error: Not Found for url: https://ark.cn-beijing.volces.com/api/v3/responses
+
+---
+
