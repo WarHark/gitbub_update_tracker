@@ -9,9 +9,8 @@ CONFIG_FILE = 'config.json'
 LAST_COMMITS_FILE = 'last_commits.json'
 SUMMARY_FILE = 'summaries.md'
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
-
+ARK_API_KEY = os.environ.get('ARK_API_KEY')
+ARK_API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
 
 # --- Helper Functions ---
 
@@ -46,7 +45,6 @@ def get_new_commits(repo, last_commit_sha):
     headers = {'Authorization': f'token {GITHUB_TOKEN}'}
     params = {}
     if last_commit_sha:
-        # We fetch recent commits and filter them until we find the last known SHA.
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         all_commits = response.json()
@@ -55,60 +53,57 @@ def get_new_commits(repo, last_commit_sha):
             if commit['sha'] == last_commit_sha:
                 break
             new_commits.append(commit)
-        return list(reversed(new_commits))  # Chronological order
+        return list(reversed(new_commits))
     else:
-        # First time, get the most recent commit
         params['per_page'] = 1
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()
         return response.json()
 
 def summarize_commits_with_llm(commit_messages):
-    """Summarizes commit messages using Google Gemini API."""
-    if not GEMINI_API_KEY:
-        print("Error: GEMINI_API_KEY not set.")
+    """Summarizes commit messages using VolcEngine Ark (doubao) API."""
+    if not ARK_API_KEY:
+        print("Error: ARK_API_KEY not set. Check your repository's secrets.")
         return "Could not summarize commits: API key is missing."
 
     messages_str = "\n".join(f"- {msg}" for msg in commit_messages)
-    prompt = f"""
-    Please summarize the following commit messages in Chinese. Focus on the key features, fixes, and changes.
-    Keep the summary concise and easy to understand.
+    user_prompt = f"""
+    请用中文总结以下 Git commit 信息的核心功能变动、修复和主要更新。
+    要求总结内容精炼、清晰、易于理解。
 
-    Commit messages:
+    Commit Messages:
     {messages_str}
 
-    Summary:
+    总结:
     """
 
     headers = {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {ARK_API_KEY}'
     }
     data = {
-        "contents": [{
-            "parts": [{
-                "text": prompt
-            }]
-        }]
+        "model": "doubao-pro-32k", # Using a common doubao pro model
+        "messages": [
+            {"role": "system", "content": "你是一个专业的软件开发助手，擅长从 Git commit 信息中提炼和总结关键变更。"},
+            {"role": "user", "content": user_prompt}
+        ]
     }
 
     try:
-        response = requests.post(GEMINI_API_URL, headers=headers, json=data)
+        response = requests.post(ARK_API_URL, headers=headers, json=data)
         response.raise_for_status()
         response_data = response.json()
 
         # Safely extract the text from the response
-        candidates = response_data.get('candidates', [])
-        if not candidates or 'content' not in candidates[0] or 'parts' not in candidates[0]['content']:
-            # Handle cases where the response is blocked or has an unexpected format
-            finish_reason = candidates[0].get('finishReason', 'UNKNOWN')
-            if finish_reason == 'SAFETY':
-                 return "Summary generation was blocked for safety reasons."
-            return f"Could not extract summary from Gemini API response. Finish Reason: {finish_reason}"
+        choices = response_data.get('choices', [])
+        if not choices or 'message' not in choices[0] or 'content' not in choices[0]['message']:
+            error_info = response_data.get('error', {'message': 'Unknown error'})
+            return f"Could not extract summary from Ark API response: {error_info.get('message')}"
 
-        summary = candidates[0]['content']['parts'][0]['text']
-        return summary
+        summary = choices[0]['message']['content']
+        return summary.strip()
     except requests.exceptions.RequestException as e:
-        print(f"Error calling Google Gemini API: {e}")
+        print(f"Error calling VolcEngine Ark API: {e}")
         return f"Error during summarization: {e}"
 
 # --- Main Logic ---
@@ -125,16 +120,13 @@ def main():
         print("No repositories configured. Exiting.")
         return
 
-    # Track if any file was changed
     changes_made = False
-
     for repo in repositories:
         print(f"\n--- Checking repository: {repo} ---")
         last_commit_sha = last_commits.get(repo)
 
         try:
             new_commits = get_new_commits(repo, last_commit_sha)
-
             if not new_commits:
                 print("No new commits since last check.")
                 continue
@@ -143,12 +135,10 @@ def main():
             changes_made = True
 
             commit_messages = [c['commit']['message'] for c in new_commits]
-
             summary = summarize_commits_with_llm(commit_messages)
 
             append_to_summary_file(repo, summary)
 
-            # Update last commit SHA
             latest_commit_sha = new_commits[-1]['sha']
             last_commits[repo] = latest_commit_sha
             print(f"Updated last commit for {repo} to {latest_commit_sha[:7]}")
@@ -160,13 +150,11 @@ def main():
 
     if changes_made:
         save_json(LAST_COMMITS_FILE, last_commits)
-        # Set an output for the GitHub Action to know if there were changes
         if 'GITHUB_OUTPUT' in os.environ:
             with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                 f.write('changes_made=true\n')
 
     print("\nUpdate check finished.")
-
 
 if __name__ == "__main__":
     main()
