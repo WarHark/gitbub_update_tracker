@@ -35,3 +35,15 @@ Error during summarization: 404 Client Error: Not Found for url: https://ark.cn-
 
 ---
 
+## Fission-AI/OpenSpec - 2026-02-28 08:20:55 UTC
+
+Could not extract summary from Ark API response: Unknown error
+
+---
+
+## tyrchen/claude-skills - 2026-02-28 08:21:07 UTC
+
+Could not extract summary from Ark API response: Unknown error
+
+---
+
