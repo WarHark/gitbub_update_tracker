@@ -2,7 +2,7 @@
 import os
 import json
 import requests
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 # --- Configuration ---
 CONFIG_FILE = 'config.json'
@@ -10,7 +10,6 @@ LAST_COMMITS_FILE = 'last_commits.json'
 SUMMARY_FILE = 'summaries.md'
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 ARK_API_KEY = os.environ.get('ARK_API_KEY')
-# Corrected API URL based on the new example
 ARK_API_URL = "https://ark.cn-beijing.volces.com/api/v3/responses"
 
 # --- Helper Functions ---
@@ -30,14 +29,22 @@ def save_json(file_path, data):
     with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-def append_to_summary_file(repo_name, summary):
-    """Appends a new summary to the markdown file."""
-    timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
-    with open(SUMMARY_FILE, 'a', encoding='utf-8') as f:
-        f.write(f"## {repo_name} - {timestamp}\n\n")
-        f.write(f"{summary}\n\n")
-        f.write("---\n\n")
-    print(f"Appended summary for {repo_name} to {SUMMARY_FILE}")
+def get_beijing_time():
+    """Returns the current time in Beijing time (UTC+8)."""
+    utc_plus_8 = timezone(timedelta(hours=8))
+    return datetime.now(utc_plus_8).strftime('%Y-%m-%d %H:%M:%S BJT')
+
+def update_summary_file(new_content):
+    """Prepends new content to the summary file."""
+    old_content = ""
+    if os.path.exists(SUMMARY_FILE):
+        with open(SUMMARY_FILE, 'r', encoding='utf-8') as f:
+            old_content = f.read()
+
+    with open(SUMMARY_FILE, 'w', encoding='utf-8') as f:
+        f.write(new_content)
+        f.write(old_content)
+    print(f"Updated {SUMMARY_FILE} with new content at the top.")
 
 def get_new_commits(repo, last_commit_sha):
     """Fetches new commits from a GitHub repository."""
@@ -83,7 +90,7 @@ def summarize_commits_with_llm(commit_messages):
         'Authorization': f'Bearer {ARK_API_KEY}'
     }
     data = {
-        "model": "doubao-seed-1-8-251228",
+        "model": "doubao-seed-1-8-251228", # Corrected model name
         "input": [
             {
                 "role": "user",
@@ -102,7 +109,6 @@ def summarize_commits_with_llm(commit_messages):
         response.raise_for_status()
         response_data = response.json()
 
-        # --- Final fix for response parsing ---
         output_list = response_data.get('output', [])
         for item in output_list:
             if item.get('type') == 'message' and item.get('role') == 'assistant':
@@ -112,10 +118,8 @@ def summarize_commits_with_llm(commit_messages):
                         summary = content_item.get('text', '')
                         return summary.strip()
 
-        # If summary is not found, print debug info and return an error
         print("--- Unexpected API Response: Could not find summary text ---")
         print(json.dumps(response_data, indent=2, ensure_ascii=False))
-        print("----------------------------------------------------------")
         error_info = response_data.get('error', {'message': 'Summary not found in response structure'})
         return f"Could not extract summary from Ark API response: {error_info.get('message')}"
 
@@ -132,14 +136,15 @@ def main():
     print("Starting GitHub repository update check...")
     config = load_json(CONFIG_FILE)
     last_commits = load_json(LAST_COMMITS_FILE)
-
     repositories = config.get('repositories', [])
 
     if not repositories:
         print("No repositories configured. Exiting.")
         return
 
-    changes_made = False
+    new_summaries = []
+    changes_found_in_any_repo = False
+
     for repo in repositories:
         print(f"\n--- Checking repository: {repo} ---")
         last_commit_sha = last_commits.get(repo)
@@ -151,12 +156,13 @@ def main():
                 continue
 
             print(f"Found {len(new_commits)} new commit(s).")
-            changes_made = True
+            changes_found_in_any_repo = True
 
             commit_messages = [c['commit']['message'] for c in new_commits]
             summary = summarize_commits_with_llm(commit_messages)
 
-            append_to_summary_file(repo, summary)
+            timestamp = get_beijing_time()
+            new_summaries.append(f"## {repo} - {timestamp}\n\n{summary}\n\n---\n\n")
 
             latest_commit_sha = new_commits[-1]['sha']
             last_commits[repo] = latest_commit_sha
@@ -167,14 +173,22 @@ def main():
         except Exception as e:
             print(f"An unexpected error occurred for {repo}: {e}")
 
-    if changes_made:
+    final_content_to_prepend = ""
+    if new_summaries:
+        final_content_to_prepend = "".join(new_summaries)
+    elif not changes_found_in_any_repo:
+        # Only add "no update" message if the script was meant to run
+        timestamp = get_beijing_time()
+        final_content_to_prepend = f"## 所有仓库无变更 - {timestamp}\n\n在此次检查期间，所有监控的仓库均无新的 commit。\n\n---\n\n"
+
+    if final_content_to_prepend:
+        update_summary_file(final_content_to_prepend)
         save_json(LAST_COMMITS_FILE, last_commits)
         if 'GITHUB_OUTPUT' in os.environ:
             with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                 f.write('changes_made=true\n')
 
     print("\nUpdate check finished.")
-
 
 if __name__ == "__main__":
     main()
