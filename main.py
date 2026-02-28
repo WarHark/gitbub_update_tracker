@@ -83,7 +83,7 @@ def summarize_commits_with_llm(commit_messages):
         'Authorization': f'Bearer {ARK_API_KEY}'
     }
     data = {
-        "model": "doubao-pro-32k",
+        "model": "doubao-seed-1-8-251228",
         "input": [
             {
                 "role": "user",
