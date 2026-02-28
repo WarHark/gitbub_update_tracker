@@ -34,17 +34,24 @@ def get_beijing_time():
     utc_plus_8 = timezone(timedelta(hours=8))
     return datetime.now(utc_plus_8).strftime('%Y-%m-%d %H:%M:%S BJT')
 
-def update_summary_file(new_content):
-    """Prepends new content to the summary file."""
-    old_content = ""
-    if os.path.exists(SUMMARY_FILE):
-        with open(SUMMARY_FILE, 'r', encoding='utf-8') as f:
-            old_content = f.read()
+def create_github_issue(repo_name, title, body):
+    """Creates a new issue in the specified GitHub repository."""
+    owner, repo = repo_name.split('/')
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues"
+    headers = {
+        'Authorization': f'token {GITHUB_TOKEN}',
+        'Accept': 'application/vnd.github.v3+json'
+    }
+    data = {'title': title, 'body': body}
 
-    with open(SUMMARY_FILE, 'w', encoding='utf-8') as f:
-        f.write(new_content)
-        f.write(old_content)
-    print(f"Updated {SUMMARY_FILE} with new content at the top.")
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        print(f"Successfully created issue in {repo_name}: {response.json()['html_url']}")
+    except requests.exceptions.RequestException as e:
+        print(f"Error creating GitHub issue for {repo_name}: {e}")
+        if e.response is not None:
+            print(f"Response body: {e.response.text}")
 
 def get_new_commits(repo, last_commit_sha):
     """Fetches new commits from a GitHub repository."""
@@ -138,12 +145,18 @@ def main():
     last_commits = load_json(LAST_COMMITS_FILE)
     repositories = config.get('repositories', [])
 
+    # The repository where the action is running, to create the issue in.
+    repo_to_post_issue = os.environ.get('GITHUB_REPOSITORY')
+
+    if not repo_to_post_issue:
+        print("Error: GITHUB_REPOSITORY environment variable not set. Cannot determine where to post the issue.")
+        return
+
     if not repositories:
         print("No repositories configured. Exiting.")
         return
 
-    new_summaries = []
-    changes_found_in_any_repo = False
+    all_summaries = []
 
     for repo in repositories:
         print(f"\n--- Checking repository: {repo} ---")
@@ -156,13 +169,12 @@ def main():
                 continue
 
             print(f"Found {len(new_commits)} new commit(s).")
-            changes_found_in_any_repo = True
 
             commit_messages = [c['commit']['message'] for c in new_commits]
             summary = summarize_commits_with_llm(commit_messages)
 
             timestamp = get_beijing_time()
-            new_summaries.append(f"## {repo} - {timestamp}\n\n{summary}\n\n---\n\n")
+            all_summaries.append(f"## {repo} - {timestamp}\n\n{summary}\n\n---\n")
 
             latest_commit_sha = new_commits[-1]['sha']
             last_commits[repo] = latest_commit_sha
@@ -173,20 +185,16 @@ def main():
         except Exception as e:
             print(f"An unexpected error occurred for {repo}: {e}")
 
-    final_content_to_prepend = ""
-    if new_summaries:
-        final_content_to_prepend = "".join(new_summaries)
-    elif not changes_found_in_any_repo:
-        # Only add "no update" message if the script was meant to run
-        timestamp = get_beijing_time()
-        final_content_to_prepend = f"## 所有仓库无变更 - {timestamp}\n\n在此次检查期间，所有监控的仓库均无新的 commit。\n\n---\n\n"
+    if all_summaries:
+        beijing_date = get_beijing_time().split(' ')[0]
+        issue_title = f"每日更新摘要 - {beijing_date}"
+        issue_body = "".join(all_summaries)
 
-    if final_content_to_prepend:
-        update_summary_file(final_content_to_prepend)
+        print("\n--- Found new updates, creating issue... ---")
+        create_github_issue(repo_to_post_issue, issue_title, issue_body)
         save_json(LAST_COMMITS_FILE, last_commits)
-        if 'GITHUB_OUTPUT' in os.environ:
-            with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                f.write('changes_made=true\n')
+    else:
+        print("\nNo new commits found in any repository. Nothing to report.")
 
     print("\nUpdate check finished.")
 

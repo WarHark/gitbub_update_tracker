@@ -8,7 +8,8 @@ on:
 # Go to your repository's Settings > Actions > General and set
 # "Workflow permissions" to "Read and write permissions".
 permissions:
-  contents: write
+  issues: write
+  contents: read
 
 jobs:
   track:
@@ -37,11 +38,3 @@ jobs:
           ARK_API_KEY: ${{ secrets.ARK_API_KEY }}
         run: python main.py
 
-      - name: Commit and push changes
-        if: steps.run_script.outputs.changes_made == 'true'
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add summaries.md last_commits.json
-          git commit -m "docs: Update summaries and last commit SHAs"
-          git push
