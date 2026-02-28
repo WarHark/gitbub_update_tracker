@@ -25,6 +25,11 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
+   # --- ↓↓↓ 在这里添加新的诊断步骤 ↓↓↓ ---
+      - name: DEBUG - Test Network Connectivity
+        run: curl -v https://ark.cn-beijing.volces.com/api/v3/responses
+        # --- ↑↑↑ 添加结束 ↑↑↑ ---
+
       - name: Run script
         id: run_script
         env:
