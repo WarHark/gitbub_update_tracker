@@ -1,0 +1,9 @@
+{
+  "repositories": [
+    "owner1/repo1",
+    "owner2/repo2"
+  ],
+  "recipients": [
+    "your-email@example.com"
+  ]
+}
