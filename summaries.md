@@ -11,3 +11,15 @@ Could not extract summary from Ark API response: Unknown error
 
 ---
 
+## Fission-AI/OpenSpec - 2026-02-28 08:07:17 UTC
+
+Error during summarization: 404 Client Error: Not Found for url: https://ark.cn-beijing.volces.com/api/v3/responses
+
+---
+
+## tyrchen/claude-skills - 2026-02-28 08:07:18 UTC
+
+Error during summarization: 404 Client Error: Not Found for url: https://ark.cn-beijing.volces.com/api/v3/responses
+
+---
+
