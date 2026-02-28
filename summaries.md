@@ -4,3 +4,9 @@ Error during summarization: 400 Client Error: Bad Request for url: https://gener
 
 ---
 
+## tyrchen/claude-skills - 2026-02-28 07:32:14 UTC
+
+Error during summarization: 404 Client Error: Not Found for url: https://ark.cn-beijing.volces.com/api/v3/chat/completions
+
+---
+
